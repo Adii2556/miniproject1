@@ -61,7 +61,7 @@ export async function extractTextFromFile(file: File): Promise<ExtractionOutput>
   if (!looksPdf && !looksText) {
     throw new DocError(
       'invalid-type',
-      `“${file.name}” doesn't look supported. Docent reads PDF, TXT, Markdown and CSV files — please upload one of those.`
+      `“${file.name}” doesn't look supported. DocLense reads PDF, TXT, Markdown and CSV files — please upload one of those.`
     );
   }
   if (!ACCEPTED.includes(ext) && ext !== '' && !isPdfMime && !isTextMime) {

@@ -52,7 +52,7 @@ const STYLE_LABELS: Record<SummaryStyle, string> = {
 
 function loadSettings(): Settings {
   try {
-    const raw = localStorage.getItem('docent.settings');
+    const raw = localStorage.getItem('doclense.settings');
     if (!raw) return DEFAULT_SETTINGS;
     const parsed = JSON.parse(raw) as Partial<Settings>;
     return {
@@ -84,7 +84,7 @@ export default function App() {
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const [analysisOptions, setAnalysisOptions] = useState<AnalysisOptions>(() => {
     try {
-      const saved = localStorage.getItem('docent.options');
+      const saved = localStorage.getItem('doclense.options');
       if (saved) return { ...DEFAULT_ANALYSIS_OPTIONS, ...JSON.parse(saved) };
     } catch {}
     return DEFAULT_ANALYSIS_OPTIONS;
@@ -120,7 +120,7 @@ export default function App() {
   /* ---------------- persist settings & options ---------------- */
   useEffect(() => {
     try {
-      localStorage.setItem('docent.settings', JSON.stringify(settings));
+      localStorage.setItem('doclense.settings', JSON.stringify(settings));
     } catch {
       /* quota/private mode */
     }
@@ -128,7 +128,7 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('docent.options', JSON.stringify(analysisOptions));
+      localStorage.setItem('doclense.options', JSON.stringify(analysisOptions));
     } catch {
       /* quota/private mode */
     }
@@ -246,7 +246,7 @@ export default function App() {
       pushToast({
         kind: 'info',
         title: `Loaded “${sample.label}”`,
-        message: 'Select what sections you want Docent to generate.',
+        message: 'Select what sections you want DocLense to generate.',
       });
     },
     [pushToast]
@@ -319,7 +319,7 @@ export default function App() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${doc ? sanitizeFilename(doc.meta.name) : 'document'}-docent-summary.txt`;
+    a.download = `${doc ? sanitizeFilename(doc.meta.name) : 'document'}-doclense-summary.txt`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -538,11 +538,11 @@ export default function App() {
 
       {/* film grain */}
       <svg className="grain-layer" aria-hidden>
-        <filter id="docent-grain">
+        <filter id="doclense-grain">
           <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" stitchTiles="stitch" />
           <feColorMatrix type="saturate" values="0" />
         </filter>
-        <rect width="100%" height="100%" filter="url(#docent-grain)" />
+        <rect width="100%" height="100%" filter="url(#doclense-grain)" />
       </svg>
 
       <ToastStack toasts={toasts} onDismiss={dismiss} />

@@ -439,7 +439,7 @@ export function ErrorMessage({
   const isKeyIssue = error.code === 'missing-key' || error.code === 'auth';
   const isRate = error.code === 'rate-limit';
   const headline =
-    error.code === 'missing-key' ? 'Docent needs a Groq API key'
+    error.code === 'missing-key' ? 'DocLense needs a Groq API key'
     : error.code === 'auth' ? 'That key didn’t work'
     : isRate ? 'Groq rate limit hit'
     : error.code === 'no-text' ? 'That PDF seems to be a picture'
@@ -489,7 +489,7 @@ export function ErrorMessage({
   );
 }
 
-/* ============ 4 · the analysis result — Docent's main event ============ */
+/* ============ 4 · the analysis result — DocLense's main event ============ */
 
 export interface AnalysisPayload {
   title: string;
@@ -820,7 +820,7 @@ export function AnalysisMessage({
 export function TruncationNote() {
   return (
     <p className="flex items-center gap-1.5 font-mono text-[9.5px] font-semibold uppercase tracking-wide text-[#8a5b00]">
-      <CircleAlert size={10} strokeWidth={2.5} aria-hidden /> Long document — Docent read the first 14,000 characters.
+      <CircleAlert size={10} strokeWidth={2.5} aria-hidden /> Long document — DocLense read the first 14,000 characters.
     </p>
   );
 }

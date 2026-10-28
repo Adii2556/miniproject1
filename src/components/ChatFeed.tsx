@@ -253,7 +253,7 @@ export default function ChatFeed({
           {/* 6 · assistant typing… */}
           {chatBusy && (
             <AiBubble>
-              <span className="flex items-center gap-1 py-1" aria-label="Docent is thinking">
+              <span className="flex items-center gap-1 py-1" aria-label="DocLense is thinking">
                 <span className="dot h-2 w-2 rounded-full bg-coral" />
                 <span className="dot h-2 w-2 rounded-full bg-amber" />
                 <span className="dot h-2 w-2 rounded-full bg-leaf" />
@@ -301,7 +301,7 @@ export default function ChatFeed({
               </button>
             </div>
             <form onSubmit={submit} className="flex items-end gap-2">
-              <label htmlFor="composer" className="sr-only">Ask Docent about this document</label>
+              <label htmlFor="composer" className="sr-only">Ask DocLense about this document</label>
               <div className="hard-sm flex min-h-[52px] flex-1 items-end rounded-2xl border-2 border-ink bg-card transition-shadow focus-within:shadow-[6px_6px_0_0_#ff4b33]">
                 <Sparkles size={16} strokeWidth={2.2} className="mb-4 ml-3.5 shrink-0 text-amber" aria-hidden />
                 <textarea
@@ -333,7 +333,7 @@ export default function ChatFeed({
               </button>
             </form>
             <p className="mt-1.5 text-center font-mono text-[8px] font-semibold uppercase tracking-[0.18em] text-ink-soft/70">
-              <Crosshair size={8} strokeWidth={2.5} className="mr-1 inline" aria-hidden />Answers are grounded in your document · Docent can make mistakes, check the source
+              <Crosshair size={8} strokeWidth={2.5} className="mr-1 inline" aria-hidden />Answers are grounded in your document · DocLense can make mistakes, check the source
             </p>
           </div>
         </div>

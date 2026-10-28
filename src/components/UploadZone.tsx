@@ -130,7 +130,7 @@ export default function UploadZone({ variant, onFile, onSample, busy }: UploadZo
               Understand any<br />document in<br /><span className="relative inline-block">seconds.<span aria-hidden className="absolute -bottom-1 left-0 h-[6px] w-full -skew-x-6 rounded-sm bg-amber/70" /></span>
             </h1>
             <p className="mt-3 max-w-sm text-[13px] leading-snug text-ink-soft">
-              Drop in a PDF or text file. Docent hands you a clean chat-style breakdown — summary, key points, keywords, sentiment, stats and a quiz — all in one friendly feed.
+              Drop in a PDF or text file. DocLense hands you a clean chat-style breakdown — summary, key points, keywords, sentiment, stats and a quiz — all in one friendly feed.
             </p>
             <img
               src="/images/empty-state.png"

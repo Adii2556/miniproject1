@@ -19,7 +19,7 @@ export default function TopBar({
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b-2 border-ink bg-paper px-3 sm:px-4">
       <div className="flex min-w-0 items-center gap-3">
         {/* ---------- logo ---------- */}
-        <a href="#" onClick={(e) => e.preventDefault()} aria-label="Docent home" className="flex shrink-0 select-none items-center gap-2">
+        <a href="#" onClick={(e) => e.preventDefault()} aria-label="DocLense home" className="flex shrink-0 select-none items-center gap-2">
           <span className="hard-xs grid h-9 w-9 place-items-center rounded-xl border-2 border-ink bg-ink" aria-hidden>
             <svg width="19" height="19" viewBox="0 0 24 24" fill="none">
               <path d="M6 3h8l4 4v13a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 20V4.5A1.5 1.5 0 0 1 7.5 3z" stroke="#f6f4ec" strokeWidth="1.7" strokeLinejoin="round" strokeLinecap="round"/>
@@ -29,7 +29,7 @@ export default function TopBar({
             </svg>
           </span>
           <span className="leading-none">
-            <span className="font-display text-[21px] font-black tracking-tight text-ink">Docent</span>
+            <span className="font-display text-[21px] font-black tracking-tight text-ink">DocLense</span>
             <span className="mt-0.5 hidden font-mono text-[8px] font-semibold uppercase tracking-[0.22em] text-ink-soft sm:block">Document Analysis Studio</span>
           </span>
         </a>

@@ -101,7 +101,7 @@ export default function Sidebar({
         </div>
         <div className="mt-auto flex flex-col items-center gap-2">
           <Bot size={20} strokeWidth={2} className="text-coral" aria-hidden />
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-widest text-ink-soft [writing-mode:vertical-rl]">Docent</span>
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-widest text-ink-soft [writing-mode:vertical-rl]">DocLense</span>
         </div>
       </aside>
     );
@@ -364,7 +364,7 @@ export default function Sidebar({
             className="flex w-full items-center justify-between px-3 py-2.5 text-left"
           >
             <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-ink-soft">
-              <CircleHelp size={12} strokeWidth={2.5} aria-hidden /> How Docent works
+              <CircleHelp size={12} strokeWidth={2.5} aria-hidden /> How DocLense works
             </span>
             <ChevronDown size={14} strokeWidth={2.5} className={`text-ink-soft transition-transform duration-200 ${howOpen ? 'rotate-180' : ''}`} aria-hidden />
           </button>
@@ -381,7 +381,7 @@ export default function Sidebar({
 
       <div className="mt-auto border-t border-ink/10 px-4 py-3">
         <p className="font-mono text-[9px] leading-relaxed text-ink-soft/75">
-          DOCENT v1.0 · MODEL FLAGSHIP: GPT-OSS 120B ON GROQ LPU™<br />Built with Vite + React + Tailwind
+          DocLense v1.0 · MODEL FLAGSHIP: GPT-OSS 120B ON GROQ LPU™<br />Built with Vite + React + Tailwind
         </p>
       </div>
     </aside>

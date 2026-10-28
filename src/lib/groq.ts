@@ -50,9 +50,9 @@ export function resolveApiKey(): { key: string | null; source: 'env' | 'session'
     '';
   if (envKey.trim()) return { key: envKey.trim(), source: 'env' };
   try {
-    const s = sessionStorage.getItem('docent.groq.key');
+    const s = sessionStorage.getItem('doclense.groq.key');
     if (s) return { key: s, source: 'session' };
-    const l = localStorage.getItem('docent.groq.key');
+    const l = localStorage.getItem('doclense.groq.key');
     if (l) return { key: l, source: 'local' };
   } catch {
     /* storage unavailable */
@@ -64,11 +64,11 @@ export function saveApiKey(key: string, remember: boolean) {
   const k = key.trim();
   try {
     if (remember) {
-      localStorage.setItem('docent.groq.key', k);
-      sessionStorage.removeItem('docent.groq.key');
+      localStorage.setItem('doclense.groq.key', k);
+      sessionStorage.removeItem('doclense.groq.key');
     } else {
-      sessionStorage.setItem('docent.groq.key', k);
-      localStorage.removeItem('docent.groq.key');
+      sessionStorage.setItem('doclense.groq.key', k);
+      localStorage.removeItem('doclense.groq.key');
     }
   } catch {
     /* storage unavailable */
@@ -77,9 +77,9 @@ export function saveApiKey(key: string, remember: boolean) {
 
 export function clearApiKey() {
   try {
-    localStorage.removeItem('docent.groq.key');
-    sessionStorage.removeItem('docent.groq.key');
-    localStorage.removeItem('docent.settings');
+    localStorage.removeItem('doclense.groq.key');
+    sessionStorage.removeItem('doclense.groq.key');
+    localStorage.removeItem('doclense.settings');
   } catch {
     /* ignore */
   }
@@ -251,7 +251,7 @@ export async function askAboutDocument(
   opts: GroqCallOptions
 ): Promise<GroqCallResult> {
   const system = [
-    'You are Docent, a friendly, precise document-analysis assistant embedded in a chat UI.',
+    'You are DocLense, a friendly, precise document-analysis assistant embedded in a chat UI.',
     'Answer questions about the DOCUMENT below only. If the answer is not in the document, say so plainly, then offer your best general guidance.',
     'Ground every claim in the text, quote short snippets when helpful, and keep answers under ~150 words unless asked for depth.',
     'Use light Markdown (bold, bullets) — no tables, no code fences unless essential.',

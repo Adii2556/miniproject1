@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { FileText, File, AlertTriangle, Sparkles, User } from 'lucide-react';
 
 /* ------------------------------------------------------------------ */
-/*  Shared shells for Docent's chat-style message feed                */
+/*  Shared shells for DocLense's chat-style message feed                */
 /* ------------------------------------------------------------------ */
 
 export function Avatar({ kind }: { kind: 'user' | 'ai' | 'error' }) {
@@ -19,7 +19,7 @@ export function Avatar({ kind }: { kind: 'user' | 'ai' | 'error' }) {
       </div>
     );
   return (
-    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-amber" title="Docent" aria-hidden>
+    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-ink bg-amber" title="DocLense" aria-hidden>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
         <rect x="5" y="7" width="14" height="12" rx="3.2" stroke="#1d1e28" strokeWidth="1.9"/>
         <circle cx="9.6" cy="13" r="1.15" fill="#1d1e28"/>
@@ -33,7 +33,7 @@ export function Avatar({ kind }: { kind: 'user' | 'ai' | 'error' }) {
 
 export function AiBubble({ children, id }: { children: ReactNode; id?: string }) {
   return (
-    <div className="msg-in flex w-full items-end gap-2.5 sm:gap-3" aria-label="Docent message">
+    <div className="msg-in flex w-full items-end gap-2.5 sm:gap-3" aria-label="DocLense message">
       <Avatar kind="ai" />
       <div id={id} className="max-w-[640px] rounded-2xl rounded-bl-md border-2 border-ink bg-card px-4 py-3 shadow-[3px_3px_0_0_rgba(29,30,40,0.9)]">
         {children}
