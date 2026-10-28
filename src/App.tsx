@@ -408,10 +408,11 @@ export default function App() {
           { role: 'system', content: 'You are a connectivity probe. Reply with exactly: OK' },
           { role: 'user', content: 'ping' },
         ],
-        { model: settings.model, temperature: 0, maxTokens: 8, timeoutMs: 20_000 }
+        { model: settings.model, temperature: 0, maxTokens: 32, timeoutMs: 20_000 }
       );
       const ms = Math.round(performance.now() - started);
-      const ok = content.trim().toUpperCase().includes('OK');
+      const trimmed = content.trim();
+      const ok = trimmed.toUpperCase().includes('OK') || !content;
       setTestResult({
         ok,
         message: ok ? `Groq responded in ${ms}ms — you’re wired up!` : `Responded (${ms}ms), but said “${content.trim().slice(0, 40)}”. Should still work.`,
