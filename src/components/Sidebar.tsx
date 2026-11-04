@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import {
   Eye, EyeOff, ChevronDown, KeyRound, ExternalLink, Cpu, Flame, Rows3, AlignLeft,
   Languages, GraduationCap, RotateCcw, History, Trash2, FileText, X, CheckCircle2, Zap,
@@ -12,11 +12,8 @@ interface SidebarProps {
   onClose: () => void
   apiKey: string
   setApiKey: (v: string) => void
-  saveKey: boolean
-  setSaveKey: (v: boolean) => void
   revealKey: boolean
   setRevealKey: (v: boolean) => void
-  keyFromEnv: boolean
   settings: AnalysisSettings
   updateSettings: (patch: Partial<AnalysisSettings>) => void
   onResetSettings: () => void
@@ -38,7 +35,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 export default function Sidebar(props: SidebarProps) {
   const {
-    open, onClose, apiKey, setApiKey, saveKey, setSaveKey, revealKey, setRevealKey, keyFromEnv,
+    open, onClose, apiKey, setApiKey, revealKey, setRevealKey,
     settings, updateSettings, onResetSettings, history, onClearHistory, onPickHistory, disabled,
   } = props
   const tempPct = ((settings.temperature - 0) / 1.2) * 100
@@ -54,11 +51,7 @@ export default function Sidebar(props: SidebarProps) {
     }
   }, [open, onClose])
 
-  const keyChip = keyFromEnv
-    ? { text: 'Loaded from environment', tone: 'gold' }
-    : apiKey.trim()
-      ? { text: 'Key saved locally', tone: 'green' }
-      : { text: 'Key required to generate', tone: 'red' }
+  const hasKey = apiKey.trim().length > 0
 
   return (
     <>
@@ -93,13 +86,11 @@ export default function Sidebar(props: SidebarProps) {
           {/* ---------- API KEY ---------- */}
           <section className="space-y-3">
             <SectionLabel>Groq API Key</SectionLabel>
-            <div className={`rounded-2xl border p-3.5 transition ${apiKey.trim() || keyFromEnv ? 'border-emerald-400/25 bg-emerald-400/[0.06]' : 'border-gold-dark/30 bg-gold-dark/[0.06]'}`}>
+            <div className={`rounded-2xl border p-3.5 transition ${hasKey ? 'border-emerald-400/25 bg-emerald-400/[0.06]' : 'border-gold-dark/30 bg-gold-dark/[0.06]'}`}>
               <label htmlFor="groq-key" className="flex items-center justify-between gap-2 text-xs font-bold text-text-dark">
-                <span className="inline-flex items-center gap-1.5"><KeyRound size={13} className="text-gold-dark" />{keyFromEnv ? 'Environment key active' : 'Your Groq key'}</span>
+                <span className="inline-flex items-center gap-1.5"><KeyRound size={13} className="text-gold-dark" />Your Groq key</span>
                 <span className="inline-flex items-center gap-1 font-sans text-[10px] font-bold uppercase tracking-wide">
-                  {keyChip.tone === 'green' && <><CheckCircle2 size={11} className="text-emerald-400" /><span className="text-emerald-400">Saved</span></>}
-                  {keyChip.tone === 'gold' && <span className="text-gold-dark">env</span>}
-                  {keyChip.tone === 'red' && <span className="text-[#ffb3a0]">Required</span>}
+                  {hasKey ? <><CheckCircle2 size={11} className="text-emerald-400" /><span className="text-emerald-400">Ready</span></> : <span className="text-[#ffb3a0]">Required</span>}
                 </span>
               </label>
               <div className="relative mt-2">
@@ -109,7 +100,7 @@ export default function Sidebar(props: SidebarProps) {
                   value={apiKey}
                   disabled={disabled}
                   onChange={e => setApiKey(e.target.value)}
-                  placeholder={keyFromEnv ? 'Using VITE_GROQ_API_KEY' : 'gsk_paste_your_key_here'}
+                  placeholder="gsk_paste_your_key_here"
                   autoComplete="off"
                   spellCheck={false}
                   className="w-full rounded-xl border border-white/12 bg-black/30 py-2.5 pl-3 pr-11 font-mono text-[12px] text-text-dark placeholder-text-dark-soft/40 outline-none transition focus:border-gold-dark/60 focus:ring-2 focus:ring-gold-dark/20 disabled:opacity-60"
@@ -119,18 +110,7 @@ export default function Sidebar(props: SidebarProps) {
                 </button>
               </div>
               <div className="mt-2.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-[11px] font-semibold text-text-dark-soft">
-                  <button
-                    role="switch"
-                    aria-checked={saveKey}
-                    aria-label="Remember API key on this device"
-                    onClick={() => setSaveKey(!saveKey)}
-                    className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${saveKey ? 'bg-emerald-500' : 'bg-white/15'}`}
-                  >
-                    <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${saveKey ? 'left-[18px]' : 'left-0.5'}`} />
-                  </button>
-                  Remember on this device
-                </div>
+                <p className="text-[11px] font-semibold leading-snug text-text-dark-soft">Held in memory and cleared when this tab closes or reloads.</p>
                 <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] font-bold text-gold-dark underline-offset-2 transition hover:text-gold hover:underline">Get a free key<ExternalLink size={10} /></a>
               </div>
             </div>
@@ -250,16 +230,16 @@ export default function Sidebar(props: SidebarProps) {
             <RotateCcw size={12} /> Reset to defaults
           </button>
 
-          {/* ---------- RECENT ANALYSES ---------- */}
+          {/* ---------- SESSION ANALYSES ---------- */}
           <section className="space-y-2.5 border-t border-white/10 pt-5">
             <div className="flex items-center justify-between px-1">
-              <SectionLabel><History size={11} className="-ml-4 mr-0.5 inline" />Recent analyses</SectionLabel>
+              <SectionLabel><History size={11} className="-ml-4 mr-0.5 inline" />This session</SectionLabel>
               {history.length > 0 && (
                 <button onClick={onClearHistory} className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-text-dark-soft/70 transition hover:text-[#ffb3a0]"><Trash2 size={11} />Clear</button>
               )}
             </div>
             {history.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-white/12 px-3 py-3 text-center text-[11px] font-medium text-text-dark-soft/70">Your last analyses will appear here.</p>
+              <p className="rounded-xl border border-dashed border-white/12 px-3 py-3 text-center text-[11px] font-medium text-text-dark-soft/70">Analyses from this tab will appear here.</p>
             ) : (
               <ul className="space-y-1.5">
                 {history.slice(0, 5).map(entry => (

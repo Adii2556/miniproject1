@@ -6,7 +6,7 @@
 
 ## ✨ Features
 
-- **Client-Side Document Parsing**: Decode PDFs directly in your browser using `pdfjs-dist` Web Workers, alongside support for `.txt`, `.md`, `.markdown`, and `.csv` files up to 15 MB.
+- **Client-Side Document Parsing**: Decode PDFs directly in your browser using `pdfjs-dist` Web Workers, alongside support for `.txt`, `.md`, and `.text` files up to 15 MB.
 - **Customizable Generation**: Select exactly what to generate before running analysis:
   - **Summary**: Choose between *Concise*, *Executive*, or *Detailed* briefs.
   - **Key Points**: 5 to 7 crisp takeaways and central arguments.
@@ -35,8 +35,8 @@
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/Adii2556/miniproject2.git
-cd miniproject2
+git clone https://github.com/Adii2556/miniproject1.git
+cd miniproject1
 ```
 
 ### 2. Install dependencies
@@ -44,13 +44,8 @@ cd miniproject2
 npm install
 ```
 
-### 3. Set up Groq API Key (Optional)
-You can either:
-- Supply an environment variable in a `.env` file:
-  ```env
-  VITE_GROQ_API_KEY=gsk_your_groq_api_key_here
-  ```
-- Or enter your key directly in the web UI sidebar (stored safely in browser `localStorage`).
+### 3. Add a Groq API key
+Open the Studio and paste your key into the sidebar. The key stays in tab memory only and is cleared when the tab closes or reloads. Never place a secret in a `VITE_*` environment variable because Vite embeds those values in browser bundles.
 
 ### 4. Run Development Server
 ```bash
@@ -60,4 +55,18 @@ npm run dev
 ### 5. Build for Production
 ```bash
 npm run build
+```
+
+## Security and privacy
+
+- PDFs and text files are parsed locally in the browser. Document text is sent to Groq only when you request analysis or ask a question.
+- API keys and document history are held in memory for the current tab; they are not persisted in browser storage.
+- PDF processing is bounded by file size, page count, extracted text, image size, and processing time.
+- The production bundle contains no session recorder, cross-window editor, or product telemetry.
+- Deploy with the security headers in `public/_headers` or the equivalent configuration for your hosting provider.
+
+Run the release checks before deployment:
+
+```bash
+npm run check
 ```

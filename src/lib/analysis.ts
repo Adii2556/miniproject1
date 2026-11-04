@@ -85,8 +85,16 @@ export function buildDownloadText(fileName: string, result: Partial<AnalysisResu
   return parts.join('\n')
 }
 
+export function sanitizeFileName(fileName: string): string {
+  const parts = fileName.split(/[/\\]/)
+  const last = parts[parts.length - 1] || ''
+  const base = last.replace(/\.[^.]+$/, '')
+  const sanitized = base.replace(/[/\\?%*:|"<>]/g, '_').replace(/^\.+/, '').trim()
+  return sanitized || 'document'
+}
+
 export function downloadTextFile(fileName: string, content: string) {
-  const base = fileName.replace(/\.[^.]+$/, '')
+  const base = sanitizeFileName(fileName)
   const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -97,4 +105,3 @@ export function downloadTextFile(fileName: string, content: string) {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
-

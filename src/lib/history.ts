@@ -1,3 +1,5 @@
+import type { DocumentModel } from './document'
+
 export interface HistoryEntry {
   id: string
   savedAt: number
@@ -7,46 +9,51 @@ export interface HistoryEntry {
   title: string
   oneLiner: string
   sentimentLabel?: string
-  /** Truncated source text so a history entry can be re-loaded instantly. */
-  text: string
+  /** Complete structured document retained only in module memory for this tab. */
+  document: DocumentModel
 }
 
-const KEY = 'docent.history.v1'
 const MAX_ENTRIES = 6
-const MAX_TEXT = 30000
+let sessionHistory: HistoryEntry[] = []
 
 export function loadHistory(): HistoryEntry[] {
-  try {
-    const raw = localStorage.getItem(KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as HistoryEntry[]
-    return Array.isArray(parsed) ? parsed.filter(e => typeof e?.text === 'string') : []
-  } catch {
-    return []
-  }
+  return [...sessionHistory]
 }
 
 export function saveHistoryEntry(entry: Omit<HistoryEntry, 'id' | 'savedAt'>): HistoryEntry[] {
   const list = loadHistory()
   const next: HistoryEntry = {
     ...entry,
-    text: entry.text.slice(0, MAX_TEXT),
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    document: {
+      ...entry.document,
+      blocks: entry.document.blocks.map(block => ({ ...block })),
+    },
+    id: crypto.randomUUID(),
     savedAt: Date.now(),
   }
   const deduped = list.filter(e => e.title !== next.title || e.fileName !== next.fileName)
-  const updated = [next, ...deduped].slice(0, MAX_ENTRIES)
-  try {
-    localStorage.setItem(KEY, JSON.stringify(updated))
-  } catch {
-    while (updated.length > 1) {
-      updated.pop()
-      try { localStorage.setItem(KEY, JSON.stringify(updated)); break } catch { /* keep pruning */ }
-    }
-  }
-  return updated
+  sessionHistory = [next, ...deduped].slice(0, MAX_ENTRIES)
+  return [...sessionHistory]
 }
 
 export function clearHistory(): void {
-  try { localStorage.removeItem(KEY) } catch { /* ignore */ }
+  sessionHistory = []
+}
+
+/** Remove sensitive values written by versions that persisted keys and documents. */
+export function purgeLegacySensitiveStorage(): void {
+  try {
+    localStorage.removeItem('docent.groq-key')
+    localStorage.removeItem('docent.groq-key-saved')
+    localStorage.removeItem('docent.history.v1')
+    localStorage.removeItem('arena_vid')
+  } catch {
+    // Local storage can be unavailable in hardened browsing modes.
+  }
+
+  try {
+    sessionStorage.removeItem('__arena_rec')
+  } catch {
+    // Session storage can be unavailable independently of local storage.
+  }
 }

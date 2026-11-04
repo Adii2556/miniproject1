@@ -11,25 +11,23 @@ import ResultsView, { StatsGrid, GeneratedStamp } from '../components/ResultsVie
 import QuizCard from '../components/QuizCard'
 import DocentLogo from '../components/DocentLogo'
 import { useTheme } from '../lib/useTheme'
-import { extractPdf } from '../lib/pdfExtract'
+import { extractPdf, PdfValidationError } from '../lib/pdfExtract'
 import { computeStats, extractKeywords, highlightMatches, type DocStats } from '../lib/stats'
 import {
   callGroq, askGroq, FriendlyError, GROQ_MODELS,
   type AnalysisSettings, type AnalysisResult, type AnalysisSection,
 } from '../lib/groq'
 import { SAMPLE_DOCS } from '../lib/samples'
-import { loadHistory, saveHistoryEntry, clearHistory, type HistoryEntry } from '../lib/history'
+import { loadHistory, saveHistoryEntry, clearHistory, purgeLegacySensitiveStorage, type HistoryEntry } from '../lib/history'
 import { buildDownloadText, downloadTextFile, type GeneratedMap } from '../lib/analysis'
 
-const LS_KEY = 'docent.groq-key'
-const LS_KEY_SAVED = 'docent.groq-key-saved'
 const LS_SETTINGS = 'docent.settings.v1'
 const MAX_FILE_MB = 15
 const CHAT_LIMIT = 2000
 
 const DEFAULT_SETTINGS: AnalysisSettings = {
   model: 'llama-3.3-70b-versatile',
-  temperature: 0.7,
+  temperature: 0.2,
   maxTokens: 3072,
   summaryStyle: 'concise',
   language: 'English',
@@ -85,39 +83,25 @@ const SUGGESTIONS = ['What is the main argument of this document?', 'Who is the 
 export default function AppShell() {
   const { theme, toggleTheme } = useTheme()
 
-  const envKey = (import.meta.env.VITE_GROQ_API_KEY as string | undefined) ?? ''
-  const keyFromEnv = Boolean(envKey)
-
   // ---------- sidebar / key / settings ----------
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [apiKey, setApiKey] = useState<string>(() => {
-    try { return localStorage.getItem(LS_KEY) ?? envKey } catch { return envKey }
-  })
-  const [saveKey, setSaveKey] = useState<boolean>(() => {
-    try { return localStorage.getItem(LS_KEY_SAVED) !== '0' } catch { return true }
-  })
+  const [apiKey, setApiKey] = useState('')
   const [revealKey, setRevealKey] = useState(false)
   const [settings, setSettings] = useState<AnalysisSettings>(loadStoredSettings)
 
   useEffect(() => {
-    try {
-      if (keyFromEnv) return
-      if (saveKey) localStorage.setItem(LS_KEY, apiKey)
-      else localStorage.removeItem(LS_KEY)
-      localStorage.setItem(LS_KEY_SAVED, saveKey ? '1' : '0')
-    } catch { /* storage unavailable */ }
-  }, [apiKey, saveKey, keyFromEnv])
+    purgeLegacySensitiveStorage()
+  }, [])
 
   useEffect(() => {
     try { localStorage.setItem(LS_SETTINGS, JSON.stringify(settings)) } catch { /* ignore */ }
   }, [settings])
 
   const updateSettings = useCallback((patch: Partial<AnalysisSettings>) => setSettings(s => ({ ...s, ...patch })), [])
-  const resetSettings = useCallback(() => {
+  const resetSettings = () => {
     setSettings(DEFAULT_SETTINGS)
     pushToast('Settings reset to defaults', 'ok')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }
 
   const canUseGroq = apiKey.trim().length > 0
 
@@ -163,14 +147,12 @@ export default function AppShell() {
   // ---------- stage cycling ----------
   useEffect(() => {
     if (!uploading) return
-    setUploadStage(0)
     const t = window.setInterval(() => setUploadStage(s => Math.min(s + 1, UPLOAD_STAGES.length - 1)), 750)
     return () => window.clearInterval(t)
   }, [uploading])
 
   useEffect(() => {
     if (!generating) return
-    setGenStage(0)
     const t = window.setInterval(() => setGenStage(s => Math.min(s + 1, GEN_STAGES.length - 1)), 1500)
     return () => window.clearInterval(t)
   }, [generating])
@@ -192,7 +174,7 @@ export default function AppShell() {
     setGenError(null)
     setMessages([])
     setUploadError(null)
-  }, [])
+  }, [setUploaded, setResult, setShowResults, setGenError, setMessages, setUploadError])
 
   const processFile = useCallback(async (file: File) => {
     setUploadError(null)
@@ -211,6 +193,7 @@ export default function AppShell() {
       return
     }
 
+    setUploadStage(0)
     setUploading(file.name)
     try {
       if (kind === 'PDF') {
@@ -231,13 +214,22 @@ export default function AppShell() {
       }
       pushToast('Document loaded — stats computed')
     } catch (err) {
-      console.error(err)
-      setUploadError({ title: 'Could not read this file', detail: kind === 'PDF' ? 'The PDF may be corrupt, password-protected, or malformed. Try opening it in a PDF viewer, re-saving it, and dropping it again.' : 'The text file could not be decoded. Make sure it is UTF-8 encoded plain text.', })
+      if (err instanceof PdfValidationError) {
+        const messages: Record<PdfValidationError['code'], UploadErrorState> = {
+          INVALID_SIGNATURE: { title: 'This is not a valid PDF', detail: 'The file extension says PDF, but its contents do not. Export the original document as a new PDF and try again.' },
+          TOO_MANY_PAGES: { title: 'This PDF has too many pages', detail: err.message },
+          TOO_MUCH_TEXT: { title: 'This PDF contains too much text', detail: err.message },
+          TIMEOUT: { title: 'PDF processing timed out', detail: 'The file took longer than 30 seconds to process. Try a shorter or optimized PDF.' },
+        }
+        setUploadError(messages[err.code])
+      } else {
+        console.error(err)
+        setUploadError({ title: 'Could not read this file', detail: kind === 'PDF' ? 'The PDF may be corrupt, password-protected, or malformed. Try opening it in a PDF viewer, re-saving it, and dropping it again.' : 'The text file could not be decoded. Make sure it is UTF-8 encoded plain text.', })
+      }
     } finally {
       setUploading(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ingestText])
 
   const loadSample = useCallback((id: string) => {
@@ -262,7 +254,7 @@ export default function AppShell() {
     setMessages([])
     setUploadError(null)
     pinToTop()
-  }, [pinToTop])
+  }, [pinToTop, setUploaded, setResult, setShowResults, setGenError, setMessages, setUploadError])
 
   // ---------- generate ----------
   const selectedCount = SECTION_KEYS.filter(k => sections[k]).length
@@ -279,6 +271,7 @@ export default function AppShell() {
       setSidebarOpen(true)
       return
     }
+    setGenStage(0)
     setGenerating(true)
     setGenError(null)
     abortRef.current?.abort()
@@ -315,7 +308,6 @@ export default function AppShell() {
     } finally {
       setGenerating(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploaded, generating, sections, canUseGroq, apiKey, settings, pinToTop])
 
   // ---------- chat ----------
@@ -340,7 +332,6 @@ export default function AppShell() {
     } finally {
       setAskLoading(false)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploaded, askLoading, canUseGroq, apiKey, settings, messages])
 
   useEffect(() => {
@@ -352,7 +343,6 @@ export default function AppShell() {
     if (!uploaded || !result) return
     downloadTextFile(uploaded.fileName, buildDownloadText(uploaded.fileName, result, uploaded.stats, generated))
     pushToast('Summary downloaded as .txt')
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploaded, result, generated])
 
   useEffect(() => {
@@ -374,7 +364,7 @@ export default function AppShell() {
     setDragActive(false)
     const file = e.dataTransfer.files?.[0]
     if (file) processFile(file)
-  }, [processFile])
+  }, [processFile, setDragActive])
 
   const anyGenerated = result !== null
   const kwForReader = generated.keywords && result?.keywords?.length ? result.keywords : extractKeywords(uploaded?.text ?? '')
@@ -386,16 +376,13 @@ export default function AppShell() {
         onClose={() => setSidebarOpen(false)}
         apiKey={apiKey}
         setApiKey={setApiKey}
-        saveKey={saveKey}
-        setSaveKey={setSaveKey}
         revealKey={revealKey}
         setRevealKey={setRevealKey}
-        keyFromEnv={keyFromEnv}
         settings={settings}
         updateSettings={updateSettings}
         onResetSettings={resetSettings}
         history={history}
-        onClearHistory={() => { clearHistory(); setHistory([]); pushToast('Recent analyses cleared') }}
+        onClearHistory={() => { clearHistory(); setHistory([]); pushToast('Session history cleared') }}
         onPickHistory={loadFromHistory}
         disabled={generating || uploading !== null}
       />
@@ -498,7 +485,7 @@ export default function AppShell() {
                     <span className="inline-flex items-center gap-2 rounded-2xl bg-moss px-5 py-3 font-sans text-sm font-extrabold text-cream shadow-[0_3px_0_#0e4740] transition group-hover:bg-moss-deep dark:bg-persimmon-dark dark:text-[#2b1206] dark:shadow-[0_3px_0_#b4532a]"><FileText size={17} />Browse files</span>
                     <span className="inline-flex items-center gap-2 rounded-2xl border-2 border-moss/30 px-5 py-[10px] font-sans text-sm font-bold text-moss-deep dark:border-white/15 dark:text-text-dark"><Sparkles size={15} />or pick a sample below</span>
                   </div>
-                  <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-soft/90 dark:text-text-dark-soft/80"><Lock size={11} />Private by architecture — your file never leaves this tab except to Groq.</p>
+                  <p className="mt-4 inline-flex items-center gap-1.5 text-[11px] font-semibold text-ink-soft/90 dark:text-text-dark-soft/80"><Lock size={11} />Parsed in this tab. Document text is sent to Groq only when you request analysis.</p>
                 </div>
               </section>
             ) : null}
@@ -726,7 +713,7 @@ export default function AppShell() {
                 <p className="whitespace-pre-wrap font-body text-[15px] leading-[1.8] text-ink dark:text-text-dark/95">
                   {highlightKeywords
                     ? highlightMatches(uploaded.text.slice(0, 60000), kwForReader).map((part, i) => part.highlight ? <mark key={i} className="kw-highlight">{part.text}</mark> : <span key={i}>{part.text}</span>)
-                    : uploaded.text}
+                    : uploaded.text.slice(0, 60000)}
                 </p>
               </div>
               <div className="border-t border-moss/15 px-5 py-2.5 text-center text-[10.5px] font-semibold text-ink-soft/80 dark:border-white/10 dark:text-text-dark-soft/70">Showing the first 60,000 characters{highlightKeywords ? ' · highlighted in gold' : ''} · {uploaded.stats.words.toLocaleString()} words total</div>

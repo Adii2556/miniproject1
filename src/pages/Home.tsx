@@ -2,8 +2,8 @@ import { useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  ArrowRight, UploadCloud, Sparkles, ListChecks, Tags, Gauge, FileQuestion, Download,
-  FileText, ShieldCheck, Keyboard, Zap, Timer, BadgeCheck, Quote, Star, BookOpenCheck,
+  ArrowRight, UploadCloud, Sparkles, ListChecks, Tags, Gauge, FileQuestion,
+  ShieldCheck, Keyboard, Zap, Timer, BadgeCheck, Quote, Star, BookOpenCheck,
 } from 'lucide-react'
 import MarketingNav from '../components/MarketingNav'
 import DocentLogo from '../components/DocentLogo'
@@ -182,7 +182,7 @@ export default function Home() {
                 <p className="text-cream/60"># the entire data flow</p>
                 <p><span className="text-cream/80">you.pdf</span> → <span className="text-[#8fe3cf]">pdf.js</span></p>
                 <p>localhost <span className="text-cream/60">{'→'}</span> api.groq.com</p>
-                <p><span className="text-[#8fe3cf]">your key</span> <span className="text-cream/60">→ stays in localStorage</span></p>
+                <p><span className="text-[#8fe3cf]">your key</span> <span className="text-cream/60">→ stays in this tab’s memory</span></p>
                 <p><span className="text-cream/80">no backend · no DB · no tracking</span></p>
               </div>
             </div>
