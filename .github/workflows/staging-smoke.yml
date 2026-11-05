@@ -1,0 +1,39 @@
+name: Manual staging security smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    env:
+      DEPLOYMENT_URL: ${{ secrets.DEPLOYMENT_URL }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      LIVE_GROQ: '1'
+      PLAYWRIGHT_HTML_OPEN: never
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify deployment headers
+        run: npm run test:headers -- --project=desktop
+
+      - name: Run one live Groq fixture
+        run: npm run test:e2e:live

@@ -1,4 +1,5 @@
 import type { AnalysisResult } from './groq'
+import type { Citation, CitedText } from './document'
 import type { DocStats } from './stats'
 
 export interface GeneratedMap {
@@ -15,6 +16,21 @@ export const NOTHING_GENERATED: GeneratedMap = { summary: false, keyPoints: fals
 export function buildDownloadText(fileName: string, result: Partial<AnalysisResult>, stats: DocStats, generated: GeneratedMap): string {
   const line = '─'.repeat(64)
   const parts: string[] = []
+  const sources: Citation[] = []
+  const sourceIndexes = new Map<string, number>()
+  const withSources = (value: CitedText): string => {
+    const markers = value.citations.map(citation => {
+      const key = `${citation.sourceId}:${citation.excerpt.replace(/\s+/g, ' ').trim().toLowerCase()}`
+      let index = sourceIndexes.get(key)
+      if (index === undefined) {
+        sources.push(citation)
+        index = sources.length
+        sourceIndexes.set(key, index)
+      }
+      return `[${index}]`
+    })
+    return `${value.text}${markers.length ? ` ${markers.join('')}` : ''}`
+  }
   parts.push('DOCENT — Document Analysis Report')
   parts.push(`Source file: ${fileName}`)
   parts.push(`Generated:   ${new Date().toLocaleString()}`)
@@ -31,14 +47,14 @@ export function buildDownloadText(fileName: string, result: Partial<AnalysisResu
   }
   if (generated.summary && result.summary) {
     parts.push('SUMMARY')
-    parts.push(result.summary)
+    parts.push(withSources(result.summary))
     parts.push('')
     parts.push(line)
     parts.push('')
   }
   if (generated.keyPoints && result.keyPoints?.length) {
     parts.push('KEY POINTS')
-    for (const p of result.keyPoints) parts.push(`•  ${p}`)
+    for (const point of result.keyPoints) parts.push(`•  ${withSources(point)}`)
     parts.push('')
     parts.push(line)
     parts.push('')
@@ -68,6 +84,13 @@ export function buildDownloadText(fileName: string, result: Partial<AnalysisResu
       q.options.forEach((o, j) => parts.push(`   ${String.fromCharCode(65 + j)}. ${o}${j === q.answer ? '   ✓' : ''}`))
       if (q.explanation) parts.push(`   → ${q.explanation}`)
     })
+    parts.push('')
+    parts.push(line)
+    parts.push('')
+  }
+  if (sources.length > 0) {
+    parts.push('SOURCES')
+    sources.forEach((citation, index) => parts.push(`[${index + 1}] ${citation.label} — “${citation.excerpt.replace(/\s+/g, ' ').trim()}”`))
     parts.push('')
     parts.push(line)
     parts.push('')

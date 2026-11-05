@@ -10,13 +10,16 @@ import Sidebar from '../components/Sidebar'
 import ResultsView, { StatsGrid, GeneratedStamp } from '../components/ResultsView'
 import QuizCard from '../components/QuizCard'
 import DocentLogo from '../components/DocentLogo'
+import CitationChips from '../components/CitationChips'
+import DocumentReader from '../components/DocumentReader'
 import { useTheme } from '../lib/useTheme'
 import { extractPdf, PdfValidationError } from '../lib/pdfExtract'
-import { computeStats, extractKeywords, highlightMatches, type DocStats } from '../lib/stats'
+import { computeStats, extractKeywords, type DocStats } from '../lib/stats'
 import {
   callGroq, askGroq, FriendlyError, GROQ_MODELS,
-  type AnalysisSettings, type AnalysisResult, type AnalysisSection,
+  type AnalysisSettings, type AnalysisResult, type AnalysisSection, type AnalysisProgress,
 } from '../lib/groq'
+import { createTextDocument, type Citation, type DocumentModel } from '../lib/document'
 import { SAMPLE_DOCS } from '../lib/samples'
 import { loadHistory, saveHistoryEntry, clearHistory, purgeLegacySensitiveStorage, type HistoryEntry } from '../lib/history'
 import { buildDownloadText, downloadTextFile, type GeneratedMap } from '../lib/analysis'
@@ -37,12 +40,8 @@ const DEFAULT_SETTINGS: AnalysisSettings = {
 type SectionKey = 'summary' | 'keyPoints' | 'keywords' | 'sentiment' | 'quiz'
 const SECTION_KEYS: SectionKey[] = ['summary', 'keyPoints', 'keywords', 'sentiment', 'quiz']
 
-interface UploadedDoc {
-  fileName: string
-  kind: 'PDF' | 'TEXT'
+interface UploadedDoc extends DocumentModel {
   sizeBytes: number
-  pageCount: number | null
-  text: string
   firstPageDataUrl: string | null
   stats: DocStats
 }
@@ -51,6 +50,7 @@ interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
+  citations?: Citation[]
   isError?: boolean
 }
 
@@ -113,6 +113,7 @@ export default function AppShell() {
   const [dragActive, setDragActive] = useState(false)
   const [highlightKeywords, setHighlightKeywords] = useState(true)
   const [readerOpen, setReaderOpen] = useState(false)
+  const [activeCitation, setActiveCitation] = useState<Citation | null>(null)
 
   // ---------- analysis state ----------
   const [sections, setSections] = useState<Record<SectionKey, boolean>>({ summary: true, keyPoints: true, keywords: true, sentiment: true, quiz: true })
@@ -122,6 +123,7 @@ export default function AppShell() {
   const [generated, setGenerated] = useState<GeneratedMap>({ summary: false, keyPoints: false, keywords: false, sentiment: false, quiz: false })
   const [showResults, setShowResults] = useState(false)
   const [genError, setGenError] = useState<string | null>(null)
+  const [analysisProgress, setAnalysisProgress] = useState<AnalysisProgress | null>(null)
 
   // ---------- chat about the doc ----------
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -165,16 +167,17 @@ export default function AppShell() {
   }, [])
 
   // ---------- ingest pipeline ----------
-  const ingestText = useCallback((text: string, fileName: string, kind: 'PDF' | 'TEXT', sizeBytes: number, pageCount: number | null, firstPageDataUrl: string | null) => {
-    const trimmed = text.trim()
-    const stats = computeStats(trimmed)
-    setUploaded({ fileName, kind, sizeBytes, pageCount, text: trimmed, firstPageDataUrl, stats })
+  const ingestDocument = useCallback((document: DocumentModel, sizeBytes: number, firstPageDataUrl: string | null) => {
+    const stats = computeStats(document.fullText)
+    setUploaded({ ...document, sizeBytes, firstPageDataUrl, stats })
     setResult(null)
     setShowResults(false)
     setGenError(null)
+    setAnalysisProgress(null)
     setMessages([])
     setUploadError(null)
-  }, [setUploaded, setResult, setShowResults, setGenError, setMessages, setUploadError])
+    setActiveCitation(null)
+  }, [setUploaded, setResult, setShowResults, setGenError, setAnalysisProgress, setMessages, setUploadError, setActiveCitation])
 
   const processFile = useCallback(async (file: File) => {
     setUploadError(null)
@@ -198,19 +201,19 @@ export default function AppShell() {
     try {
       if (kind === 'PDF') {
         const buffer = await file.arrayBuffer()
-        const { text, pageCount, firstPageDataUrl } = await extractPdf(buffer)
+        const { text, blocks, pageCount, firstPageDataUrl } = await extractPdf(buffer)
         if (text.replace(/\s/g, '').length < 30) {
           setUploadError({ title: 'No readable text in this PDF', detail: pageCount > 0 ? `Found ${pageCount} page${pageCount > 1 ? 's' : ''}, but every page appears to be a scanned image. Docent works on text-based PDFs — run the file through OCR (e.g. Adobe Acrobat → “Recognize Text”) first.` : 'The PDF could not be read at all.', })
           return
         }
-        ingestText(text, file.name, kind, file.size, pageCount, firstPageDataUrl)
+        ingestDocument({ fileName: file.name, kind, fullText: text, blocks, pageCount }, file.size, firstPageDataUrl)
       } else {
         const text = await file.text()
         if (!text.trim()) {
           setUploadError({ title: 'That file is empty', detail: 'The file opened fine, but it contains only whitespace — nothing to analyze. Paste the content into a new .txt file and try again.' })
           return
         }
-        ingestText(text, file.name, kind, file.size, null, null)
+        ingestDocument(createTextDocument(text, file.name), file.size, null)
       }
       pushToast('Document loaded — stats computed')
     } catch (err) {
@@ -230,21 +233,21 @@ export default function AppShell() {
       setUploading(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
-  }, [ingestText])
+  }, [ingestDocument])
 
   const loadSample = useCallback((id: string) => {
     const sample = SAMPLE_DOCS.find(s => s.id === id)
     if (!sample) return
     setUploadError(null)
-    ingestText(sample.text, sample.fileName, 'TEXT', new Blob([sample.text]).size, null, null)
+    ingestDocument(createTextDocument(sample.text, sample.fileName), new Blob([sample.text]).size, null)
     pushToast('Sample loaded')
-  }, [ingestText])
+  }, [ingestDocument])
 
   const loadFromHistory = useCallback((entry: HistoryEntry) => {
-    ingestText(entry.text, entry.fileName, 'TEXT', new Blob([entry.text]).size, entry.pageCount, null)
+    ingestDocument(entry.document, new Blob([entry.document.fullText]).size, null)
     pushToast('Loaded from your recents')
     setSidebarOpen(false)
-  }, [ingestText])
+  }, [ingestDocument])
 
   const resetDocument = useCallback(() => {
     setUploaded(null)
@@ -253,8 +256,10 @@ export default function AppShell() {
     setGenError(null)
     setMessages([])
     setUploadError(null)
+    setActiveCitation(null)
+    setAnalysisProgress(null)
     pinToTop()
-  }, [pinToTop, setUploaded, setResult, setShowResults, setGenError, setMessages, setUploadError])
+  }, [pinToTop, setUploaded, setResult, setShowResults, setGenError, setMessages, setUploadError, setActiveCitation, setAnalysisProgress])
 
   // ---------- generate ----------
   const selectedCount = SECTION_KEYS.filter(k => sections[k]).length
@@ -274,10 +279,11 @@ export default function AppShell() {
     setGenStage(0)
     setGenerating(true)
     setGenError(null)
+    setAnalysisProgress(null)
     abortRef.current?.abort()
     abortRef.current = new AbortController()
     try {
-      const res = await callGroq(apiKey, settings, chosen as AnalysisSection[], uploaded.text, abortRef.current.signal)
+      const res = await callGroq(apiKey, settings, chosen as AnalysisSection[], uploaded, abortRef.current.signal, setAnalysisProgress)
       const gen: GeneratedMap = {
         summary: chosen.includes('summary'),
         keyPoints: chosen.includes('keyPoints'),
@@ -298,7 +304,13 @@ export default function AppShell() {
         title: res.title ?? uploaded.fileName.replace(/\.[^.]+$/, ''),
         oneLiner: res.oneLiner ?? '',
         sentimentLabel: res.sentiment?.label,
-        text: uploaded.text,
+        document: {
+          fileName: uploaded.fileName,
+          kind: uploaded.kind,
+          fullText: uploaded.fullText,
+          blocks: uploaded.blocks,
+          pageCount: uploaded.pageCount,
+        },
       }))
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
@@ -307,6 +319,7 @@ export default function AppShell() {
       pushToast(message, 'error')
     } finally {
       setGenerating(false)
+      setAnalysisProgress(null)
     }
   }, [uploaded, generating, sections, canUseGroq, apiKey, settings, pinToTop])
 
@@ -324,8 +337,8 @@ export default function AppShell() {
     setDraft('')
     setAskLoading(true)
     try {
-      const answer = await askGroq(apiKey, settings, uploaded.text, history, q)
-      setMessages(m => [...m, { id: `a-${Date.now()}`, role: 'assistant', content: answer }])
+      const answer = await askGroq(apiKey, settings, uploaded, history, q)
+      setMessages(m => [...m, { id: `a-${Date.now()}`, role: 'assistant', content: answer.text, citations: answer.citations }])
     } catch (err) {
       const message = err instanceof FriendlyError ? err.message : 'Something went wrong. Please try again.'
       setMessages(m => [...m, { id: `e-${Date.now()}`, role: 'assistant', content: message, isError: true }])
@@ -333,6 +346,11 @@ export default function AppShell() {
       setAskLoading(false)
     }
   }, [uploaded, askLoading, canUseGroq, apiKey, settings, messages])
+
+  const openCitation = useCallback((citation: Citation) => {
+    setActiveCitation(citation)
+    setReaderOpen(true)
+  }, [setActiveCitation, setReaderOpen])
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
@@ -367,7 +385,14 @@ export default function AppShell() {
   }, [processFile, setDragActive])
 
   const anyGenerated = result !== null
-  const kwForReader = generated.keywords && result?.keywords?.length ? result.keywords : extractKeywords(uploaded?.text ?? '')
+  const kwForReader = generated.keywords && result?.keywords?.length ? result.keywords : extractKeywords(uploaded?.fullText ?? '')
+  const progressPercent = !analysisProgress
+    ? ((genStage + 1) / GEN_STAGES.length) * 100
+    : analysisProgress.phase === 'mapping'
+      ? Math.max(8, (analysisProgress.completed / Math.max(1, analysisProgress.total)) * 72)
+      : analysisProgress.phase === 'synthesizing'
+        ? (analysisProgress.completed > 0 ? 100 : 86)
+        : 55
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-paper-grain font-sans text-ink dark:bg-moss-night-deep dark:text-text-dark">
@@ -418,7 +443,7 @@ export default function AppShell() {
             {uploaded && showResults && anyGenerated && (
               <div key="results" className="space-y-4">
                 <GeneratedStamp />
-                <ResultsView fileName={uploaded.fileName} stats={uploaded.stats} result={result!} generated={generated} onToast={(m) => pushToast(m)} />
+                <ResultsView fileName={uploaded.fileName} stats={uploaded.stats} result={result!} generated={generated} onToast={(m) => pushToast(m)} onOpenCitation={openCitation} />
                 {generated.quiz && result?.quiz && <QuizCard quiz={result.quiz} onToast={(m) => pushToast(m)} />}
                 <div className="flex items-center gap-3 px-1 pt-1 text-[10.5px] font-bold uppercase tracking-[0.18em] text-ink-soft/70 dark:text-text-dark-soft/60">
                   <span className="h-px flex-1 bg-moss/20 dark:bg-white/10" />
@@ -537,7 +562,7 @@ export default function AppShell() {
                         <span>· ~{uploaded.stats.readingTimeLabel} read</span>
                       </div>
                       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                        <button onClick={() => setReaderOpen(true)} className="inline-flex items-center gap-1.5 rounded-xl border border-moss/30 px-3 py-1.5 text-[11px] font-bold text-moss-deep transition hover:bg-moss-mist dark:border-white/15 dark:text-text-dark dark:hover:bg-white/5"><Eye size={13} />View full text</button>
+                        <button onClick={() => { setActiveCitation(null); setReaderOpen(true) }} className="inline-flex items-center gap-1.5 rounded-xl border border-moss/30 px-3 py-1.5 text-[11px] font-bold text-moss-deep transition hover:bg-moss-mist dark:border-white/15 dark:text-text-dark dark:hover:bg-white/5"><Eye size={13} />View full text</button>
                         <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-xl border border-moss/30 px-3 py-1.5 text-[11px] font-bold text-moss-deep transition hover:bg-moss-mist dark:border-white/15 dark:text-text-dark dark:hover:bg-white/5"><CloudUpload size={13} />Replace</button>
                         <button onClick={resetDocument} className="inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-[11px] font-bold text-ink-soft transition hover:bg-persimmon-mist hover:text-persimmon dark:text-text-dark-soft dark:hover:bg-persimmon-dark/10 dark:hover:text-persimmon-dark"><Trash2 size={13} />Remove</button>
                         <input ref={fileInputRef} type="file" accept=".pdf,.txt,.md,.text,application/pdf,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) processFile(f) }} />
@@ -594,19 +619,20 @@ export default function AppShell() {
                         )}
                       </div>
                       <button
-                        onClick={generate}
-                        disabled={generating || selectedCount === 0}
+                        onClick={() => { if (generating) abortRef.current?.abort(); else void generate() }}
+                        disabled={selectedCount === 0}
+                        aria-label={generating ? 'Cancel analysis' : 'Generate analysis'}
                         className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-2xl bg-persimmon px-6 py-4 font-sans text-[15px] font-extrabold text-cream shadow-[0_4px_0_#b93a17] transition hover:bg-persimmon-soft active:translate-y-0.5 active:shadow-[0_2px_0_#b93a17] disabled:cursor-not-allowed disabled:opacity-70 dark:bg-persimmon-dark dark:text-[#2b1206] dark:shadow-[0_4px_0_#b4532a]"
                       >
                         {generating ? (
-                          <><Loader2 size={18} className="animate-spin" />Analyzing… <span className="font-mono text-[11px] font-semibold text-cream/85 dark:text-[#2b1206]/75">{GEN_STAGES[genStage]}</span></>
+                          <><X size={18} />Cancel <span className="font-mono text-[11px] font-semibold text-cream/85 dark:text-[#2b1206]/75">{analysisProgress?.label ?? GEN_STAGES[genStage]}</span></>
                         ) : (
                           <><Zap size={18} strokeWidth={2.5} />{anyGenerated ? 'Regenerate' : 'Generate analysis'}<kbd className="rounded-md border border-cream/40 bg-black/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-cream/95 dark:border-[#2b1206]/30 dark:text-[#2b1206]">G</kbd></>
                         )}
                       </button>
                     </div>
                     {generating && (
-                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-moss-mist dark:bg-white/10"><motion.div className="h-full rounded-full bg-gradient-to-r from-persimmon via-gold to-moss" animate={{ width: `${((genStage + 1) / GEN_STAGES.length) * 100}%` }} transition={{ ease: 'easeOut', duration: 0.6 }} /></div>
+                      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-moss-mist dark:bg-white/10"><motion.div className="h-full rounded-full bg-gradient-to-r from-persimmon via-gold to-moss" animate={{ width: `${progressPercent}%` }} transition={{ ease: 'easeOut', duration: 0.6 }} /></div>
                     )}
                     {genError && (
                       <div role="alert" className="mt-3 flex items-start gap-2 rounded-2xl border border-persimmon/40 bg-persimmon-mist px-3.5 py-2.5 text-[12.5px] font-semibold leading-snug text-[#8a2c0d] dark:border-persimmon-dark/35 dark:bg-persimmon-dark/10 dark:text-persimmon-dark"><CircleAlert size={15} className="mt-0.5 shrink-0" />{genError}</div>
@@ -644,7 +670,10 @@ export default function AppShell() {
                       messages.map(m => (
                         <div key={m.id} className={`flex gap-2 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
                           {m.role === 'assistant' && <DocentLogo size={26} className="mt-1 shrink-0" />}
-                          <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 font-body text-[14px] leading-relaxed shadow-sm sm:max-w-[78%] ${m.role === 'user' ? 'rounded-tr-md bg-moss text-cream dark:bg-persimmon-dark dark:text-[#2b1206]' : m.isError ? 'rounded-tl-md border border-persimmon/45 bg-persimmon-mist text-[#8a2c0d] dark:border-persimmon-dark/40 dark:bg-persimmon-dark/10 dark:text-persimmon-dark' : 'rounded-tl-md border border-moss/20 bg-paper text-ink dark:border-white/10 dark:bg-panel-dark-2 dark:text-text-dark/95'}`}>{m.content}</div>
+                          <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 font-body text-[14px] leading-relaxed shadow-sm sm:max-w-[78%] ${m.role === 'user' ? 'rounded-tr-md bg-moss text-cream dark:bg-persimmon-dark dark:text-[#2b1206]' : m.isError ? 'rounded-tl-md border border-persimmon/45 bg-persimmon-mist text-[#8a2c0d] dark:border-persimmon-dark/40 dark:bg-persimmon-dark/10 dark:text-persimmon-dark' : 'rounded-tl-md border border-moss/20 bg-paper text-ink dark:border-white/10 dark:bg-panel-dark-2 dark:text-text-dark/95'}`}>
+                            <p className="whitespace-pre-wrap">{m.content}</p>
+                            {m.role === 'assistant' && m.citations ? <CitationChips citations={m.citations} onOpen={openCitation} className="mt-2" /> : null}
+                          </div>
                         </div>
                       ))
                     )}
@@ -691,36 +720,17 @@ export default function AppShell() {
         </AnimatePresence>
       </div>
 
-      {/* ===== full-text reader modal ===== */}
-      <AnimatePresence>
-        {readerOpen && uploaded && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[55] flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center sm:p-6" onClick={() => setReaderOpen(false)} role="dialog" aria-modal="true" aria-label="Full document text">
-            <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 60, opacity: 0 }} transition={{ type: 'spring', damping: 28, stiffness: 320 }} className="flex h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-3xl border border-moss/30 bg-cream shadow-2xl dark:border-white/12 dark:bg-panel-dark sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-moss/15 px-5 py-3.5 dark:border-white/10">
-                <div className="flex min-w-0 items-center gap-2.5">
-                  <FileText size={17} className="shrink-0 text-moss dark:text-gold-dark" />
-                  <p className="truncate font-display text-[13.5px] font-bold text-ink dark:text-text-dark">{uploaded.fileName}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button onClick={() => setHighlightKeywords(v => !v)} role="switch" aria-checked={highlightKeywords} className="flex items-center gap-2 rounded-xl border border-moss/30 px-2.5 py-1.5 text-[10.5px] font-extrabold uppercase tracking-wide text-moss-deep transition hover:bg-moss-mist dark:border-white/15 dark:text-gold-dark dark:hover:bg-white/5">
-                    <span className={`relative h-4 w-7 rounded-full transition-colors ${highlightKeywords ? 'bg-gold' : 'bg-moss/25 dark:bg-white/15'}`}><span className={`absolute top-0.5 h-3 w-3 rounded-full bg-cream shadow transition-all ${highlightKeywords ? 'left-3.5' : 'left-0.5'}`} /></span>
-                    Keywords
-                  </button>
-                  <button onClick={() => setReaderOpen(false)} className="rounded-xl p-2 text-ink-soft transition hover:bg-moss-mist hover:text-ink dark:text-text-dark-soft dark:hover:bg-white/5" aria-label="Close reader"><X size={18} /></button>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto px-6 py-5">
-                <p className="whitespace-pre-wrap font-body text-[15px] leading-[1.8] text-ink dark:text-text-dark/95">
-                  {highlightKeywords
-                    ? highlightMatches(uploaded.text.slice(0, 60000), kwForReader).map((part, i) => part.highlight ? <mark key={i} className="kw-highlight">{part.text}</mark> : <span key={i}>{part.text}</span>)
-                    : uploaded.text.slice(0, 60000)}
-                </p>
-              </div>
-              <div className="border-t border-moss/15 px-5 py-2.5 text-center text-[10.5px] font-semibold text-ink-soft/80 dark:border-white/10 dark:text-text-dark-soft/70">Showing the first 60,000 characters{highlightKeywords ? ' · highlighted in gold' : ''} · {uploaded.stats.words.toLocaleString()} words total</div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {uploaded ? (
+        <DocumentReader
+          document={uploaded}
+          open={readerOpen}
+          activeCitation={activeCitation}
+          keywords={kwForReader}
+          highlightKeywords={highlightKeywords}
+          onToggleKeywords={() => setHighlightKeywords(value => !value)}
+          onClose={() => setReaderOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

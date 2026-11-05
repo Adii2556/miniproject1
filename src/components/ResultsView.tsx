@@ -6,8 +6,10 @@ import {
   Activity, Languages, CheckCircle2, Layers,
 } from 'lucide-react'
 import type { AnalysisResult } from '../lib/groq'
+import type { Citation } from '../lib/document'
 import type { DocStats } from '../lib/stats'
 import { buildDownloadText, downloadTextFile, type GeneratedMap } from '../lib/analysis'
+import CitationChips from './CitationChips'
 
 interface ResultsViewProps {
   fileName: string
@@ -15,6 +17,7 @@ interface ResultsViewProps {
   result: Partial<AnalysisResult>
   generated: GeneratedMap
   onToast: (msg: string) => void
+  onOpenCitation: (citation: Citation) => void
 }
 
 /** Small Docent avatar bubble used at the head of each chat-style block. */
@@ -48,7 +51,7 @@ function BlockHeader({ icon: Icon, label, accent, onCopy, copied }: { icon: type
 
 const blockAnim = (i: number) => ({ initial: { opacity: 0, y: 22 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.45, delay: i * 0.09, ease: [0.22, 1, 0.36, 1] as const } })
 
-export default function ResultsView({ fileName, stats, result, generated, onToast }: ResultsViewProps) {
+export default function ResultsView({ fileName, stats, result, generated, onToast, onOpenCitation }: ResultsViewProps) {
   const [copiedKey, setCopiedKey] = useState<string | null>(null)
 
   const copy = async (key: string, text: string) => {
@@ -74,7 +77,7 @@ export default function ResultsView({ fileName, stats, result, generated, onToas
     onToast('Summary downloaded as .txt')
   }
 
-  const summaryText = result.summary ?? ''
+  const summaryText = result.summary?.text ?? ''
   const sentiment = result.sentiment
   const gaugePct = sentiment ? ((Math.max(-100, Math.min(100, sentiment.score)) + 100) / 200) * 100 : 50
   const sentimentColor = !sentiment ? '' : sentiment.score >= 25 ? 'text-moss dark:text-emerald-400' : sentiment.score <= -25 ? 'text-persimmon dark:text-persimmon-dark' : 'text-[#8a5b0e] dark:text-gold-dark'
@@ -83,6 +86,16 @@ export default function ResultsView({ fileName, stats, result, generated, onToas
 
   return (
     <div className="space-y-4">
+      {result.coverage ? (
+        <motion.aside {...blockAnim(i++)} className={`rounded-2xl border px-4 py-3 ${result.coverage.mode === 'sampled' ? 'border-gold/45 bg-gold/10 dark:border-gold-dark/35 dark:bg-gold-dark/10' : 'border-moss/20 bg-moss-mist/45 dark:border-white/10 dark:bg-white/[0.035]'}`} aria-label="Analysis coverage">
+          <p className="font-sans text-xs font-extrabold text-ink dark:text-text-dark">
+            {result.coverage.mode === 'sampled' ? `Analyzed ${result.coverage.analyzedChunkIds.length} of ${result.coverage.totalChunks} sections` : 'Analyzed the full document'}
+          </p>
+          <p className="mt-1 text-[11px] font-medium leading-relaxed text-ink-soft dark:text-text-dark-soft">
+            {result.coverage.mode === 'sampled' ? `Fast analysis sampled ${result.coverage.labels.join(', ')}.` : `Evidence checked across ${result.coverage.labels.join(', ')}.`}
+          </p>
+        </motion.aside>
+      ) : null}
       {/* ---------- SUGGESTED TITLE ---------- */}
       {generated.summary && result.title && (
         <motion.article {...blockAnim(i++)} className="flex gap-3">
@@ -104,6 +117,7 @@ export default function ResultsView({ fileName, stats, result, generated, onToas
             <div className="mt-2.5 space-y-3 font-body text-[15px] leading-[1.75] text-ink dark:text-text-dark/95">
               {summaryText.split(/\n{2,}/).map((para, idx) => <p key={idx} className="whitespace-pre-line">{para}</p>)}
             </div>
+            {result.summary ? <CitationChips citations={result.summary.citations} onOpen={onOpenCitation} className="mt-3" /> : null}
           </div>
         </motion.article>
       )}
@@ -113,12 +127,15 @@ export default function ResultsView({ fileName, stats, result, generated, onToas
         <motion.article {...blockAnim(i++)} className="flex gap-3">
           <DocentAvatar />
           <div className="min-w-0 flex-1 rounded-3xl rounded-tl-lg border border-moss/20 bg-cream p-5 shadow-sm dark:border-white/10 dark:bg-panel-dark">
-            <BlockHeader icon={ListChecks} label={`Key points · ${result.keyPoints.length}`} accent="bg-moss-mist text-moss-deep dark:bg-moss/25 dark:text-[#7fd6c2]" onCopy={() => copy('keypoints', result.keyPoints!.map(p => `• ${p}`).join('\n'))} copied={copiedKey === 'keypoints'} />
+            <BlockHeader icon={ListChecks} label={`Key points · ${result.keyPoints.length}`} accent="bg-moss-mist text-moss-deep dark:bg-moss/25 dark:text-[#7fd6c2]" onCopy={() => copy('keypoints', result.keyPoints!.map(p => `• ${p.text}`).join('\n'))} copied={copiedKey === 'keypoints'} />
             <ol className="mt-3 space-y-2.5">
               {result.keyPoints.map((point, idx) => (
                 <li key={idx} className="flex items-start gap-3">
                   <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-moss/30 bg-moss-mist font-mono text-[10.5px] font-bold text-moss-deep dark:border-white/15 dark:bg-white/5 dark:text-gold-dark">{String(idx + 1).padStart(2, '0')}</span>
-                  <span className="font-body text-[15px] leading-relaxed text-ink dark:text-text-dark/95">{point}</span>
+                  <div className="min-w-0 flex-1">
+                    <span className="font-body text-[15px] leading-relaxed text-ink dark:text-text-dark/95">{point.text}</span>
+                    <CitationChips citations={point.citations} onOpen={onOpenCitation} className="mt-1.5" />
+                  </div>
                 </li>
               ))}
             </ol>

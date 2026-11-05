@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest'
 import { clearHistory, loadHistory, purgeLegacySensitiveStorage, saveHistoryEntry } from '../src/lib/history'
+import { createTextDocument } from '../src/lib/document'
 
 describe('session history', () => {
   beforeEach(() => clearHistory())
@@ -11,11 +12,11 @@ describe('session history', () => {
       words: 100,
       title: 'Private document',
       oneLiner: 'Confidential material',
-      text: 'sensitive content',
+      document: createTextDocument('sensitive content', 'private.pdf'),
     })
 
     expect(entries).toHaveLength(1)
-    expect(loadHistory()[0].text).toBe('sensitive content')
+    expect(loadHistory()[0].document.fullText).toBe('sensitive content')
   })
 
   test('purges storage keys created by older releases', () => {

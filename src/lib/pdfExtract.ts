@@ -1,8 +1,12 @@
-import * as pdfjsLib from 'pdfjs-dist'
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs'
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 import type { SourceBlock } from './document'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl as string
+// Vite turns `?url` into a browser asset URL. Vitest runs PDF.js in Node, where
+// that URL would otherwise be resolved from the drive root rather than this repo.
+pdfjsLib.GlobalWorkerOptions.workerSrc = typeof window === 'undefined'
+  ? new URL('../../node_modules/pdfjs-dist/legacy/build/pdf.worker.min.mjs', import.meta.url).href
+  : pdfWorkerUrl as string
 
 export const MAX_PDF_PAGES = 200
 export const MAX_EXTRACTED_CHARS = 250_000
@@ -42,7 +46,9 @@ export async function extractPdf(buffer: ArrayBuffer): Promise<PdfExtractResult>
 
   const task = pdfjsLib.getDocument({
     data: new Uint8Array(buffer.slice(0)),
-    isEvalSupported: false,
+    // PDF.js 6 removed the legacy isEvalSupported loader option after fixing
+    // its evaluator. This extractor never creates an annotation/scripting layer.
+    enableXfa: false,
     maxImageSize: MAX_IMAGE_PIXELS,
     stopAtErrors: true,
   })
